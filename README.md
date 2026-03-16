@@ -155,4 +155,3 @@ finvise/
 
 ---
 
-*Built for FinVise AI Tech Pvt Ltd Technical Assignment — 24-hour challenge*
