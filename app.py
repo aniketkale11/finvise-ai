@@ -103,38 +103,75 @@ def resolve_ticker(raw: str) -> str:
         raw = raw + ".NS"
     return raw
 
-@st.cache_data(ttl=300)  # cache for 5 minutes
+@st.cache_data(ttl=300)
 def fetch_stock(ticker: str) -> dict | None:
-    try:
-        tk = yf.Ticker(ticker)
-        info = tk.info
-        hist = tk.history(period="5d")
-        if hist.empty:
-            return None
-        latest = hist.iloc[-1]
-        prev   = hist.iloc[-2] if len(hist) > 1 else hist.iloc[-1]
-        change    = latest["Close"] - prev["Close"]
-        change_pct = (change / prev["Close"]) * 100
-        return {
-            "name":        info.get("longName", ticker),
-            "symbol":      ticker,
-            "price":       round(latest["Close"], 2),
-            "open":        round(latest["Open"], 2),
-            "high":        round(latest["High"], 2),
-            "low":         round(latest["Low"], 2),
-            "volume":      int(latest["Volume"]),
-            "change":      round(change, 2),
-            "change_pct":  round(change_pct, 2),
-            "week52_high": info.get("fiftyTwoWeekHigh", "N/A"),
-            "week52_low":  info.get("fiftyTwoWeekLow",  "N/A"),
-            "sector":      info.get("sector",            "N/A"),
-            "market_cap":  info.get("marketCap",         "N/A"),
-        }
-    except Exception as e:
-        st.error(f"Stock data error: {e}")
-        return None
+    import time
+    errors = []
 
-@st.cache_data(ttl=300)  # cache for 5 minutes
+    # Try up to 3 times with delay
+    for attempt in range(3):
+        try:
+            if attempt > 0:
+                time.sleep(2)  # wait 2 seconds before retry
+
+            tk   = yf.Ticker(ticker)
+            hist = tk.history(period="5d", timeout=10)
+
+            if hist.empty:
+                # Try with .BO suffix if .NS fails
+                if ".NS" in ticker:
+                    alt = ticker.replace(".NS", ".BO")
+                    tk   = yf.Ticker(alt)
+                    hist = tk.history(period="5d", timeout=10)
+                if hist.empty:
+                    errors.append("No data returned")
+                    continue
+
+            info = tk.fast_info  # faster than tk.info, less rate limiting
+
+            latest = hist.iloc[-1]
+            prev   = hist.iloc[-2] if len(hist) > 1 else hist.iloc[-1]
+            change     = latest["Close"] - prev["Close"]
+            change_pct = (change / prev["Close"]) * 100
+
+            # fast_info uses different attribute names
+            try:
+                name     = tk.info.get("longName", ticker)
+                sector   = tk.info.get("sector", "N/A")
+                mkt_cap  = tk.info.get("marketCap", "N/A")
+                w52_high = tk.info.get("fiftyTwoWeekHigh", "N/A")
+                w52_low  = tk.info.get("fiftyTwoWeekLow",  "N/A")
+            except Exception:
+                name     = ticker.replace(".NS", "").replace(".BO", "")
+                sector   = "N/A"
+                mkt_cap  = "N/A"
+                w52_high = round(hist["High"].max(), 2)
+                w52_low  = round(hist["Low"].min(),  2)
+
+            return {
+                "name":        name,
+                "symbol":      ticker,
+                "price":       round(latest["Close"], 2),
+                "open":        round(latest["Open"],  2),
+                "high":        round(latest["High"],  2),
+                "low":         round(latest["Low"],   2),
+                "volume":      int(latest["Volume"]),
+                "change":      round(change, 2),
+                "change_pct":  round(change_pct, 2),
+                "week52_high": w52_high,
+                "week52_low":  w52_low,
+                "sector":      sector,
+                "market_cap":  mkt_cap,
+            }
+
+        except Exception as e:
+            errors.append(str(e))
+            continue
+
+    st.error(f"Could not fetch stock data after 3 attempts. Please try again in a minute.\nDetails: {errors[-1]}")
+    return None
+
+@st.cache_data(ttl=300)
 def fetch_news(company: str, api_key: str) -> list[dict]:
     try:
         url = (
@@ -198,7 +235,7 @@ def generate_summary(prompt: str, api_key: str) -> str:
     try:
         client = Groq(api_key=api_key)
         resp = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="llama3-8b-8192",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7,
             max_tokens=600,
