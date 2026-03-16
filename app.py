@@ -103,6 +103,7 @@ def resolve_ticker(raw: str) -> str:
         raw = raw + ".NS"
     return raw
 
+@st.cache_data(ttl=300)  # cache for 5 minutes
 def fetch_stock(ticker: str) -> dict | None:
     try:
         tk = yf.Ticker(ticker)
@@ -133,6 +134,7 @@ def fetch_stock(ticker: str) -> dict | None:
         st.error(f"Stock data error: {e}")
         return None
 
+@st.cache_data(ttl=300)  # cache for 5 minutes
 def fetch_news(company: str, api_key: str) -> list[dict]:
     try:
         url = (
