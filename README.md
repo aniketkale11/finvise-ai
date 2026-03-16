@@ -3,7 +3,7 @@
 > AI-powered stock market intelligence with automatic 90-second video brief generation for Indian stocks (NSE/BSE).
 
 ## Live Demo
-🔗 [Add your Streamlit Cloud URL here after deployment]
+🔗 (https://finvise-ai-kqjku4gldaphwfdkxiwjrr.streamlit.app/)
 
 ## Sample Video Output
 📹 [Add a link to a sample generated video here]
