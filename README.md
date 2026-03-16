@@ -5,8 +5,7 @@
 ## Live Demo
 🔗 (https://finvise-ai-kqjku4gldaphwfdkxiwjrr.streamlit.app/)
 
-## Sample Video Output
-📹 [Add a link to a sample generated video here]
+
 
 ---
 
